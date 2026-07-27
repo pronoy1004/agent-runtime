@@ -27,11 +27,11 @@ class Run:
     result: dict[str, Any] | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.time)
-    cost_usd: float | None = None
+    usage: dict[str, int] | None = None
     artifact: bytes | None = None
     _tick: asyncio.Event = field(default_factory=asyncio.Event)
-    _cancel: Any = None
-    """Set to the live ClaudeSDKClient so DELETE can interrupt it."""
+    _task: Any = None
+    """The asyncio.Task running this run, so DELETE can cancel it."""
 
     def emit(self, event: dict[str, Any]) -> None:
         self.events.append(event)
@@ -65,7 +65,7 @@ class Run:
             "status": self.status,
             "result": self.result,
             "error": self.error,
-            "cost_usd": self.cost_usd,
+            "usage": self.usage,
             "created_at": self.created_at,
         }
 

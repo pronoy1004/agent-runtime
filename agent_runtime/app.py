@@ -81,6 +81,7 @@ def create_app(spec: AgentSpec) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         run = app.state.registry.create()
         task = asyncio.create_task(execute(spec, plan, run))
+        run._task = task
         # Hold a reference; a bare create_task can be garbage collected mid-run.
         app.state.tasks.add(task)
         task.add_done_callback(app.state.tasks.discard)
@@ -116,13 +117,17 @@ def create_app(spec: AgentSpec) -> FastAPI:
         if run.status != "running":
             # Already finished. Cancelling now would throw away its result.
             return run.public()
-        client = run._cancel
-        if client is not None:
+        task = run._task
+        if task is not None and not task.done():
+            task.cancel()
             try:
-                await client.interrupt()
-            except Exception:  # noqa: BLE001 - the run may have just ended on its own
-                log.warning("interrupt failed for run %s", run_id, exc_info=True)
-        run.finish("cancelled", error="cancelled by client")
+                await asyncio.wait_for(task, timeout=10)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):  # noqa: BLE001
+                pass  # expected: cancellation raises, or cleanup itself failed
+        # A run that finished (or errored) in the race with this cancel keeps its own
+        # result; only stamp "cancelled" if it is still sitting in "running".
+        if run.status == "running":
+            run.finish("cancelled", error="cancelled by client")
         return run.public()
 
     if spec.extra_routes is not None:

@@ -1,8 +1,9 @@
-"""Shared HTTP runtime for Claude Agent SDK agents built on skill plugins."""
+"""Shared HTTP runtime for Gemini-backed agents built on Agent Skills content."""
 
 from .app import create_app
 from .registry import Registry, Run
-from .spec import AgentSpec, RunOutcome, RunPlan, plugin_skills
+from .skills import load_skill, load_skills
+from .spec import AgentSpec, RunOutcome, RunPlan
 
 __all__ = [
     "AgentSpec",
@@ -11,5 +12,6 @@ __all__ = [
     "RunOutcome",
     "RunPlan",
     "create_app",
-    "plugin_skills",
+    "load_skill",
+    "load_skills",
 ]
