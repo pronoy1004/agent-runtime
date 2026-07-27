@@ -8,7 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-flash-latest"
+"""A rolling alias rather than a pinned version: Google retires dated models out from
+under existing keys (confirmed live — gemini-2.5-flash 404s as "no longer available to
+new users" while still appearing in models.list()), and the alias tracks whatever
+replaces it."""
 
 
 @dataclass
