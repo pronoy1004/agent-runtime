@@ -8,11 +8,16 @@ from typing import Any
 
 from pydantic import BaseModel
 
-DEFAULT_MODEL = "gemini-flash-latest"
-"""A rolling alias rather than a pinned version: Google retires dated models out from
-under existing keys (confirmed live — gemini-2.5-flash 404s as "no longer available to
-new users" while still appearing in models.list()), and the alias tracks whatever
-replaces it."""
+DEFAULT_MODEL = "gemini/gemini-flash-latest"
+"""litellm's `provider/model` form. The provider prefix is what picks the client and the
+API key env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, ...) — set
+`RunPlan.model` to any litellm-supported string, e.g. "anthropic/claude-sonnet-5" or
+"openai/gpt-4o", to run on a different provider with your own key.
+
+The default stays on a rolling Gemini alias rather than a pinned version: Google retires
+dated models out from under existing keys (confirmed live — gemini-2.5-flash 404s as "no
+longer available to new users" while still appearing in models.list()), and the alias
+tracks whatever replaces it."""
 
 
 @dataclass

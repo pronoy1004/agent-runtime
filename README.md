@@ -1,12 +1,18 @@
 # agent-runtime
 
-The HTTP layer shared by my skill-plugin agents. It takes a Claude Agent SDK
-configuration and serves it as an API that any UI can call: start a run, stream progress,
-read the result.
+The HTTP layer shared by my skill-plugin agents. It takes a `RunPlan` — a prompt, a
+system instruction, optional tools and a response schema — and serves it as an API that
+any UI can call: start a run, stream progress, read the result.
 
 It exists so the agents themselves stay small. Each one supplies an `AgentSpec` and gets
 the whole surface below for free, which also means one client implementation works against
 every agent built on it.
+
+Runs are driven through [litellm](https://docs.litellm.ai/), so `RunPlan.model` is a
+`"provider/model"` string and any provider litellm supports works: `anthropic/claude-sonnet-5`,
+`openai/gpt-4o`, `gemini/gemini-flash-latest`, etc. Set whichever API key you already have
+for that provider — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, ... — there is
+no separate key to provision.
 
 Used by:
 
@@ -19,8 +25,9 @@ Used by:
 pip install git+https://github.com/pronoy1004/agent-runtime
 ```
 
-The Agent SDK shells out to the Claude Code CLI, so that needs to be on `PATH` and
-authenticated (`ANTHROPIC_API_KEY`, or a profile from `claude` itself).
+Set the API key env var for whichever provider you're running on (see above), and
+optionally `AGENT_MODEL` to pick the provider/model — each agent defaults to Gemini if
+unset.
 
 ## The API
 
@@ -96,24 +103,19 @@ off when it is unset.
 Supply an `AgentSpec` and call `create_app`:
 
 ```python
-from agent_runtime import AgentSpec, RunPlan, create_app, plugin_skills
-from claude_agent_sdk import ClaudeAgentOptions
+from agent_runtime import AgentSpec, RunPlan, create_app, load_skills
 from pydantic import BaseModel
+
+SKILLS_ROOT = ...  # path to the skill plugin's skills/ directory
 
 class Input(BaseModel):
     topic: str
 
 def build(payload: Input) -> RunPlan:
     return RunPlan(
-        prompt=f"/my-plugin:do-the-thing {payload.topic}",
-        options=ClaudeAgentOptions(
-            plugins=[{"type": "local", "path": PLUGIN_ROOT}],
-            setting_sources=[],
-            skills=plugin_skills(PLUGIN_ROOT),
-            allowed_tools=["Skill"],
-            permission_mode="dontAsk",
-            model="claude-opus-5",
-        ),
+        prompt=f"Do the thing for: {payload.topic}",
+        system_instruction=load_skills(SKILLS_ROOT / "do-the-thing"),
+        model="anthropic/claude-sonnet-5",  # or any litellm "provider/model" string
     )
 
 def collect(outcome) -> dict:
@@ -125,19 +127,15 @@ app = create_app(AgentSpec(
 ))
 ```
 
-Two settings carry most of the weight:
+There is no native skill/plugin-loading mechanism outside Claude Code, so `load_skills`
+reads a skill's `SKILL.md` (and its `references/`) straight off disk and folds it into the
+system prompt — the skill files themselves are never modified.
 
-- `plugins=[{"type": "local", "path": ...}]` loads a skill repo exactly as it sits on disk.
-  Nothing is copied or restructured, and the skills become `plugin-name:skill-name`.
-- `setting_sources=[]` keeps the service out of the operator's personal `~/.claude`. Skills
-  still load, because the `plugins` option discovers them on its own. Without this, a run
-  would silently inherit whatever settings, skills, and MCP servers happen to be on the host.
-
-`plugin_skills(path)` returns just that plugin's skills, so a run is not carrying Claude
-Code's bundled skills in context alongside the pipeline it is meant to drive.
-
-Use `output_format` for a structured result and read it back from
-`outcome.structured_output`. It beats parsing prose out of the final message.
+Set `response_schema` on the `RunPlan` for a structured result and read it back from
+`outcome.structured_output`. It beats parsing prose out of the final message. Set `tools`
+to a list of plain Python functions (type hints + a Google-style docstring) if the agent
+needs to look at files or call out before it can answer; the runtime drives the
+tool-call loop and turns each call into a `tool_use` event.
 
 ## Scope
 
